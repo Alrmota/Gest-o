@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ComposedChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Area, Line } from 'recharts';
 import { TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { KpiCard } from '../../components/widgets/KpiCard';
+import { Badge } from '../../components/common/Badge';
+import { Button } from '../../components/common/Button';
 
 interface DashboardStats {
   progress: {
@@ -14,17 +17,14 @@ interface DashboardStats {
   costByStage: { name: string; total_cost: number }[];
 }
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch dashboard data for a default project (e.g., ID 1) or aggregate
-    // For demo, we'll fetch project 1 if it exists, or seed first
     fetch('/api/projects/1/dashboard')
       .then(res => {
         if (res.ok) return res.json();
-        // If 404, maybe seed
         return fetch('/api/seed', { method: 'POST' }).then(() => fetch('/api/projects/1/dashboard').then(r => r.json()));
       })
       .then(data => {
@@ -48,74 +48,45 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">Avanço Físico</p>
-              <h3 className="text-2xl font-bold text-gray-900">{progress.percent_complete.toFixed(1)}%</h3>
-            </div>
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-              <TrendingUp size={20} />
-            </div>
-          </div>
-          <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
-            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${progress.percent_complete}%` }}></div>
-          </div>
-        </div>
+        <KpiCard
+          title="Avanço Físico"
+          value={`${progress.percent_complete.toFixed(1)}%`}
+          icon={TrendingUp}
+          iconColorClass="text-blue-600"
+          bgColorClass="bg-blue-50"
+          progress={progress.percent_complete}
+        />
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">SPI (Prazo)</p>
-              <h3 className={`text-2xl font-bold ${progress.spi >= 1 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {progress.spi.toFixed(2)}
-              </h3>
-            </div>
-            <div className={`p-2 rounded-lg ${progress.spi >= 1 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-              <Clock size={20} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            {progress.spi >= 1 ? 'Dentro do prazo' : 'Atrasado'}
-          </p>
-        </div>
+        <KpiCard
+          title="SPI (Prazo)"
+          value={progress.spi.toFixed(2)}
+          icon={Clock}
+          iconColorClass={progress.spi >= 1 ? 'text-emerald-600' : 'text-red-600'}
+          bgColorClass={progress.spi >= 1 ? 'bg-emerald-50' : 'bg-red-50'}
+          subtitle={progress.spi >= 1 ? 'Dentro do prazo' : 'Atrasado'}
+        />
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">CPI (Custo)</p>
-              <h3 className={`text-2xl font-bold ${progress.cpi >= 1 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {progress.cpi.toFixed(2)}
-              </h3>
-            </div>
-            <div className={`p-2 rounded-lg ${progress.cpi >= 1 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-              <CheckCircle size={20} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            {progress.cpi >= 1 ? 'Dentro do orçamento' : 'Acima do orçamento'}
-          </p>
-        </div>
+        <KpiCard
+          title="CPI (Custo)"
+          value={progress.cpi.toFixed(2)}
+          icon={CheckCircle}
+          iconColorClass={progress.cpi >= 1 ? 'text-emerald-600' : 'text-red-600'}
+          bgColorClass={progress.cpi >= 1 ? 'bg-emerald-50' : 'bg-red-50'}
+          subtitle={progress.cpi >= 1 ? 'Dentro do orçamento' : 'Acima do orçamento'}
+        />
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">Custo Real (AC)</p>
-              <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(progress.ac)}</h3>
-            </div>
-            <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
-              <AlertTriangle size={20} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Previsto (BAC): {formatCurrency(progress.bac)}
-          </p>
-        </div>
+        <KpiCard
+          title="Custo Real (AC)"
+          value={formatCurrency(progress.ac)}
+          icon={AlertTriangle}
+          iconColorClass="text-purple-600"
+          bgColorClass="bg-purple-50"
+          subtitle={`Previsto (BAC): ${formatCurrency(progress.bac)}`}
+        />
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Cost by Stage (ABC Curve approximation) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold mb-4">Custo por Etapa</h3>
           <div className="h-80">
@@ -132,7 +103,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* S-Curve (Simulated) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold mb-4">Curva S (Físico-Financeiro)</h3>
           <div className="h-80">

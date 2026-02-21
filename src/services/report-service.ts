@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { ProjectService, BudgetService, TrackingService } from './construction.ts';
+import { ProjectService, BudgetService, TrackingService } from './engineering-service.ts';
 
 export class ReportService {
   static async generateProjectReport(projectId: number) {

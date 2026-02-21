@@ -3,8 +3,8 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import cors from 'cors';
 import { initDatabase } from './src/db/schema.ts';
-import { ProjectService, BudgetService, TrackingService } from './src/services/construction.ts';
-import { ReportService } from './src/services/report.ts';
+import { ProjectService, BudgetService, TrackingService, MaterialService, PurchaseService, WarehouseService } from './src/services/engineering-service.ts';
+import { ReportService } from './src/services/report-service.ts';
 import db from './src/db/schema.ts';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -29,10 +29,10 @@ async function startServer() {
     // Mock login for demo purposes
     if (username === 'admin' && password === 'admin') {
        const token = jwt.sign({ username, role: 'admin' }, SECRET_KEY, { expiresIn: '1h' });
-       return res.json({ token, user: { username, role: 'admin', name: 'Administrator' } });
+       return res.json({ token, user: { username, role: 'admin', name: 'Struxio Admin' } });
     }
     // Real implementation would query DB
-    res.status(401).json({ error: 'Invalid credentials' });
+    res.status(401).json({ error: 'Credenciais inválidas' });
   });
 
   // Projects
@@ -43,7 +43,7 @@ async function startServer() {
 
   app.get('/api/projects/:id', (req, res) => {
     const project = ProjectService.getProjectById(Number(req.params.id));
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project) return res.status(404).json({ error: 'Projeto não encontrado' });
     
     const stats = TrackingService.getProjectProgress(Number(req.params.id));
     res.json({ ...project, stats });
@@ -52,6 +52,15 @@ async function startServer() {
   app.post('/api/projects', (req, res) => {
     try {
       const project = ProjectService.createProject(req.body);
+      res.json(project);
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  app.put('/api/projects/:id', (req, res) => {
+    try {
+      const project = ProjectService.updateProject(Number(req.params.id), req.body);
       res.json(project);
     } catch (e) {
       res.status(500).json({ error: (e as Error).message });
@@ -162,6 +171,92 @@ async function startServer() {
     }
   });
 
+  // Materials
+  app.get('/api/projects/:id/materials', (req, res) => {
+    const materials = MaterialService.getProjectMaterials(Number(req.params.id));
+    res.json(materials);
+  });
+
+  app.post('/api/materials', (req, res) => {
+    try {
+      const material = MaterialService.createMaterial(req.body);
+      res.json(material);
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  app.put('/api/materials/:id', (req, res) => {
+    try {
+      const material = MaterialService.updateMaterial(Number(req.params.id), req.body);
+      res.json(material);
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  app.delete('/api/materials/:id', (req, res) => {
+    try {
+      MaterialService.deleteMaterial(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  // Purchases
+  app.get('/api/projects/:id/purchases', (req, res) => {
+    const purchases = PurchaseService.getProjectPurchases(Number(req.params.id));
+    res.json(purchases);
+  });
+
+  app.post('/api/purchases', (req, res) => {
+    try {
+      const purchase = PurchaseService.createPurchase(req.body);
+      res.json(purchase);
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  app.delete('/api/purchases/:id', (req, res) => {
+    try {
+      PurchaseService.deletePurchase(Number(req.params.id));
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  // Warehouse
+  app.get('/api/projects/:id/warehouse/exits', (req, res) => {
+    const exits = WarehouseService.getProjectExits(Number(req.params.id));
+    res.json(exits);
+  });
+
+  app.post('/api/warehouse/exits', (req, res) => {
+    try {
+      const exit = WarehouseService.createExit(req.body);
+      res.json(exit);
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  app.get('/api/projects/:id/warehouse/waste', (req, res) => {
+    const waste = WarehouseService.getProjectWaste(Number(req.params.id));
+    res.json(waste);
+  });
+
+  app.post('/api/warehouse/waste', (req, res) => {
+    try {
+      const waste = WarehouseService.createWaste(req.body);
+      res.json(waste);
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
   // Dashboard Stats
   app.get('/api/projects/:id/dashboard', (req, res) => {
     const projectId = Number(req.params.id);
@@ -189,7 +284,7 @@ async function startServer() {
   // Seed Data Endpoint (For Demo)
   app.post('/api/seed', (req, res) => {
     const existing = db.prepare('SELECT count(*) as c FROM projects').get() as {c: number};
-    if (existing.c > 0) return res.json({ message: 'Already seeded' });
+    if (existing.c > 0) return res.json({ message: 'Dados já semeados' });
 
     const project = ProjectService.createProject({
       name: 'Residencial Villa Verde',
@@ -227,7 +322,7 @@ async function startServer() {
       }
     });
 
-    res.json({ message: 'Seeded successfully' });
+    res.json({ message: 'Dados semeados com sucesso' });
   });
 
   // Vite middleware

@@ -3,12 +3,12 @@ import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FolderKanban, Settings, LogOut, Menu } from 'lucide-react';
 import { clsx } from 'clsx';
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function MainLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Painel', path: '/', icon: LayoutDashboard },
     { name: 'Projetos', path: '/projects', icon: FolderKanban },
     { name: 'Configurações', path: '/settings', icon: Settings },
   ];
@@ -18,7 +18,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <div className={clsx("bg-slate-900 text-white transition-all duration-300 flex flex-col", sidebarOpen ? "w-64" : "w-20")}>
         <div className="p-4 flex items-center justify-between border-b border-slate-800">
-          {sidebarOpen && <h1 className="font-bold text-xl text-emerald-400">ConstruGest</h1>}
+          {sidebarOpen && <h1 className="font-bold text-xl text-emerald-400">Struxio</h1>}
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1 hover:bg-slate-800 rounded">
             <Menu size={20} />
           </button>
@@ -58,9 +58,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {navItems.find(i => i.path === location.pathname)?.name || 'Gestão de Obras'}
           </h2>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">Bem-vindo, <strong>Admin</strong></span>
+            <span className="text-sm text-gray-600">Bem-vindo, <strong>Struxio Admin</strong></span>
             <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold">
-              A
+              S
             </div>
           </div>
         </header>

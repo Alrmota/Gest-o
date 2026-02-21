@@ -113,6 +113,82 @@ export function initDatabase() {
     )
   `);
 
+  // Project Materials (Levantamento de Materiais)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_materials (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      stage_id INTEGER,
+      activity_id INTEGER,
+      description TEXT NOT NULL,
+      unit TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      unit_cost REAL NOT NULL,
+      category TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (stage_id) REFERENCES stages(id) ON DELETE CASCADE,
+      FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Material Purchases (Compras de Materiais)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS material_purchases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      material_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      unit_price REAL NOT NULL,
+      supplier TEXT NOT NULL,
+      invoice_number TEXT,
+      notes TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (material_id) REFERENCES project_materials(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Warehouse Exits (Saídas de Almoxarifado)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS warehouse_exits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      material_id INTEGER NOT NULL,
+      stage_id INTEGER,
+      activity_id INTEGER,
+      date TEXT NOT NULL,
+      collaborator TEXT NOT NULL,
+      storage_location TEXT,
+      storage_sector TEXT,
+      quantity REAL NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (material_id) REFERENCES project_materials(id) ON DELETE CASCADE,
+      FOREIGN KEY (stage_id) REFERENCES stages(id) ON DELETE CASCADE,
+      FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Warehouse Waste (Perdas/Desperdício)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS warehouse_waste (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      material_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      reason TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (material_id) REFERENCES project_materials(id) ON DELETE CASCADE
+    )
+  `);
+
+  try {
+    db.exec('ALTER TABLE project_materials ADD COLUMN stage_id INTEGER REFERENCES stages(id) ON DELETE CASCADE');
+    db.exec('ALTER TABLE project_materials ADD COLUMN activity_id INTEGER REFERENCES activities(id) ON DELETE CASCADE');
+  } catch (e) {
+    // Columns likely already exist
+  }
+
   // Seed default admin user if not exists
   const stmt = db.prepare('SELECT count(*) as count FROM users');
   const result = stmt.get() as { count: number };

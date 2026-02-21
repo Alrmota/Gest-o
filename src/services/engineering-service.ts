@@ -19,6 +19,13 @@ export class ProjectService {
     return { id: info.lastInsertRowid, ...project };
   }
 
+  static updateProject(id: number, project: Partial<Project>) {
+    const fields = Object.keys(project).map(key => `${key} = @${key}`).join(', ');
+    const stmt = db.prepare(`UPDATE projects SET ${fields} WHERE id = @id`);
+    stmt.run({ ...project, id });
+    return this.getProjectById(id);
+  }
+
   static getProjectStages(projectId: number) {
     return db.prepare('SELECT * FROM stages WHERE project_id = ? ORDER BY display_order').all(projectId);
   }
@@ -29,7 +36,10 @@ export class ProjectService {
   
   static getProjectActivities(projectId: number) {
      return db.prepare(`
-        SELECT a.*, s.name as stage_name 
+        SELECT 
+          a.*, 
+          s.name as stage_name,
+          COALESCE((SELECT SUM(executed_quantity) FROM daily_logs WHERE activity_id = a.id), 0) as executed_quantity
         FROM activities a
         JOIN stages s ON a.stage_id = s.id
         WHERE s.project_id = ?
@@ -100,6 +110,89 @@ export class ProjectService {
 
   static deleteActivity(id: number) {
     return db.prepare('DELETE FROM activities WHERE id = ?').run(id);
+  }
+}
+
+export class MaterialService {
+  static getProjectMaterials(projectId: number) {
+    return db.prepare(`
+      SELECT 
+        m.*, 
+        s.name as stage_name, 
+        a.description as activity_name,
+        COALESCE((SELECT SUM(quantity) FROM material_purchases WHERE material_id = m.id), 0) as purchased_quantity,
+        COALESCE((SELECT SUM(quantity) FROM warehouse_exits WHERE material_id = m.id), 0) as exited_quantity,
+        COALESCE((SELECT SUM(quantity) FROM warehouse_waste WHERE material_id = m.id), 0) as waste_quantity
+      FROM project_materials m
+      LEFT JOIN stages s ON m.stage_id = s.id
+      LEFT JOIN activities a ON m.activity_id = a.id
+      WHERE m.project_id = ?
+    `).all(projectId).map((m: any) => ({
+      ...m,
+      current_stock: m.purchased_quantity - m.exited_quantity - m.waste_quantity
+    }));
+  }
+
+  static createMaterial(material: any) {
+    const stmt = db.prepare(`
+      INSERT INTO project_materials (project_id, stage_id, activity_id, description, unit, quantity, unit_cost, category)
+      VALUES (@project_id, @stage_id, @activity_id, @description, @unit, @quantity, @unit_cost, @category)
+    `);
+    const info = stmt.run(material);
+    return { id: info.lastInsertRowid, ...material };
+  }
+
+  static updateMaterial(id: number, material: any) {
+    const fields = Object.keys(material).map(key => `${key} = @${key}`).join(', ');
+    const stmt = db.prepare(`UPDATE project_materials SET ${fields} WHERE id = @id`);
+    stmt.run({ ...material, id });
+    return db.prepare('SELECT * FROM project_materials WHERE id = ?').get(id);
+  }
+
+  static deleteMaterial(id: number) {
+    return db.prepare('DELETE FROM project_materials WHERE id = ?').run(id);
+  }
+}
+
+export class WarehouseService {
+  static getProjectExits(projectId: number) {
+    return db.prepare(`
+      SELECT e.*, m.description as material_name, m.unit, s.name as stage_name, a.description as activity_name
+      FROM warehouse_exits e
+      JOIN project_materials m ON e.material_id = m.id
+      LEFT JOIN stages s ON e.stage_id = s.id
+      LEFT JOIN activities a ON e.activity_id = a.id
+      WHERE e.project_id = ?
+      ORDER BY e.date DESC
+    `).all(projectId);
+  }
+
+  static createExit(exit: any) {
+    const stmt = db.prepare(`
+      INSERT INTO warehouse_exits (project_id, material_id, stage_id, activity_id, date, collaborator, storage_location, storage_sector, quantity)
+      VALUES (@project_id, @material_id, @stage_id, @activity_id, @date, @collaborator, @storage_location, @storage_sector, @quantity)
+    `);
+    const info = stmt.run(exit);
+    return { id: info.lastInsertRowid, ...exit };
+  }
+
+  static getProjectWaste(projectId: number) {
+    return db.prepare(`
+      SELECT w.*, m.description as material_name, m.unit
+      FROM warehouse_waste w
+      JOIN project_materials m ON w.material_id = m.id
+      WHERE w.project_id = ?
+      ORDER BY w.date DESC
+    `).all(projectId);
+  }
+
+  static createWaste(waste: any) {
+    const stmt = db.prepare(`
+      INSERT INTO warehouse_waste (project_id, material_id, date, quantity, reason)
+      VALUES (@project_id, @material_id, @date, @quantity, @reason)
+    `);
+    const info = stmt.run(waste);
+    return { id: info.lastInsertRowid, ...waste };
   }
 }
 
@@ -180,6 +273,16 @@ export class TrackingService {
   }
 
   static createDailyLog(log: Omit<DailyLog, 'id'>) {
+    // Validation: check if total executed quantity exceeds planned quantity
+    const activity = db.prepare('SELECT planned_quantity, description FROM activities WHERE id = ?').get(log.activity_id) as { planned_quantity: number, description: string };
+    const executed = db.prepare('SELECT SUM(executed_quantity) as total FROM daily_logs WHERE activity_id = ?').get(log.activity_id) as { total: number };
+    
+    const totalExecuted = (executed.total || 0) + log.executed_quantity;
+    
+    if (totalExecuted > activity.planned_quantity) {
+      throw new Error(`A quantidade total executada (${totalExecuted}) para "${activity.description}" excederia a quantidade planejada (${activity.planned_quantity}).`);
+    }
+
     const stmt = db.prepare(`
       INSERT INTO daily_logs (activity_id, date, executed_quantity, real_cost, notes)
       VALUES (@activity_id, @date, @executed_quantity, @real_cost, @notes)
@@ -197,5 +300,32 @@ export class TrackingService {
       WHERE s.project_id = ?
       ORDER BY dl.date DESC
     `).all(projectId);
+  }
+}
+
+export class PurchaseService {
+  static getProjectPurchases(projectId: number) {
+    return db.prepare(`
+      SELECT p.*, m.description as material_name, s.name as stage_name, a.description as activity_name
+      FROM material_purchases p
+      JOIN project_materials m ON p.material_id = m.id
+      LEFT JOIN stages s ON m.stage_id = s.id
+      LEFT JOIN activities a ON m.activity_id = a.id
+      WHERE p.project_id = ?
+      ORDER BY p.date DESC
+    `).all(projectId);
+  }
+
+  static createPurchase(purchase: any) {
+    const stmt = db.prepare(`
+      INSERT INTO material_purchases (project_id, material_id, date, quantity, unit_price, supplier, invoice_number, notes)
+      VALUES (@project_id, @material_id, @date, @quantity, @unit_price, @supplier, @invoice_number, @notes)
+    `);
+    const info = stmt.run(purchase);
+    return { id: info.lastInsertRowid, ...purchase };
+  }
+
+  static deletePurchase(id: number) {
+    return db.prepare('DELETE FROM material_purchases WHERE id = ?').run(id);
   }
 }
